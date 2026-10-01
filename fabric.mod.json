@@ -1,13 +1,24 @@
 {
   "schemaVersion": 1,
-  "id": "catvisuals",
+  "id": "cat-client",
   "version": "${version}",
-  "name": "Cat",
-  "description": "Cat - client-side visuals: ClickGUI, HUD, JumpCircles, Trails, TargetRing",
+  "name": "Cat Client",
+  "description": "Visuals mod for Fabric 1.21.4",
+  "authors": ["swizyy559"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/cat/icon.png",
   "environment": "client",
-  "entrypoints": { "client": ["com.cat.visuals.CatClient"] },
+  "entrypoints": {
+    "client": [
+      "me.cat.client.CatClient"
+    ]
+  },
+  "mixins": [
+    "cat.mixins.json"
+  ],
   "depends": {
-    "fabricloader": ">=0.16.10",
+    "fabricloader": ">=0.16.9",
     "minecraft": "~1.21.4",
     "java": ">=21",
     "fabric-api": "*"

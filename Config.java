@@ -1,53 +1,74 @@
-package com.cat.visuals;
+package me.cat.client.config;
 
-import net.fabricmc.loader.api.FabricLoader;
+import com.google.gson.*;
+import me.cat.client.CatClient;
+import me.cat.client.module.Module;
+import me.cat.client.module.settings.*;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Properties;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 
-/** Сохранение модулей и настроек в config/cat.properties. */
-public final class Config {
-    private Config() {}
+public class Config {
+    private final File file;
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
-    private static Path file() {
-        return FabricLoader.getInstance().getConfigDir().resolve("cat.properties");
+    public Config() {
+        File dir = new File("cat");
+        if (!dir.exists()) dir.mkdir();
+        file = new File(dir, "config.json");
     }
 
-    public static void load() {
-        Path f = file();
-        if (!Files.exists(f)) return;
-        Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(f)) {
-            p.load(in);
-        } catch (IOException e) {
-            return;
+    public void save() {
+        JsonObject obj = new JsonObject();
+        for (Module m : CatClient.moduleManager.getModules()) {
+            JsonObject mObj = new JsonObject();
+            mObj.addProperty("enabled", m.isEnabled());
+            mObj.addProperty("key", m.getKey());
+            JsonObject sObj = new JsonObject();
+            for (Setting<?> s : m.getSettings()) {
+                if (s instanceof BooleanSetting)
+                    sObj.addProperty(s.getName(), ((BooleanSetting) s).getValue());
+                else if (s instanceof NumberSetting)
+                    sObj.addProperty(s.getName(), ((NumberSetting) s).getValue());
+                else if (s instanceof ColorSetting)
+                    sObj.addProperty(s.getName(), ((ColorSetting) s).getValue());
+            }
+            mObj.add("settings", sObj);
+            obj.add(m.getName(), mObj);
         }
-        for (Module m : Module.ALL) {
-            String en = p.getProperty(m.name + ".enabled");
-            if (en != null) {
-                m.enabled = Boolean.parseBoolean(en);
-                m.anim = m.enabled ? 1f : 0f;
-            }
-            for (Setting s : m.settings) {
-                String v = p.getProperty(m.name + "." + s.name);
-                if (v != null) s.load(v);
-            }
+        try (FileWriter writer = new FileWriter(file)) {
+            gson.toJson(obj, writer);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
-    public static void save() {
-        Properties p = new Properties();
-        for (Module m : Module.ALL) {
-            p.setProperty(m.name + ".enabled", Boolean.toString(m.enabled));
-            for (Setting s : m.settings) p.setProperty(m.name + "." + s.name, s.save());
-        }
-        try (OutputStream out = Files.newOutputStream(file())) {
-            p.store(out, "Cat settings");
-        } catch (IOException ignored) {
+    public void load() {
+        if (!file.exists()) return;
+        try (FileReader reader = new FileReader(file)) {
+            JsonObject obj = JsonParser.parseReader(reader).getAsJsonObject();
+            for (Module m : CatClient.moduleManager.getModules()) {
+                if (!obj.has(m.getName())) continue;
+                JsonObject mObj = obj.getAsJsonObject(m.getName());
+                if (mObj.has("enabled")) m.setEnabled(mObj.get("enabled").getAsBoolean());
+                if (mObj.has("key")) m.setKey(mObj.get("key").getAsInt());
+                if (mObj.has("settings")) {
+                    JsonObject sObj = mObj.getAsJsonObject("settings");
+                    for (Setting<?> s : m.getSettings()) {
+                        if (!sObj.has(s.getName())) continue;
+                        JsonElement el = sObj.get(s.getName());
+                        if (s instanceof BooleanSetting && el.isJsonPrimitive())
+                            ((BooleanSetting) s).setValue(el.getAsBoolean());
+                        else if (s instanceof NumberSetting && el.isJsonPrimitive())
+                            ((NumberSetting) s).setValue(el.getAsDouble());
+                        else if (s instanceof ColorSetting && el.isJsonPrimitive())
+                            ((ColorSetting) s).setValue(el.getAsInt());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
